@@ -16,7 +16,7 @@ Motor Trend, the auto magazine, has gathered data with the intent of comparing m
 Using a combination of hypothesis testing and linear regression, we'll compare average MPG from automatic and manual transmission vehicles.  The results will show that manual transmission cars do get better gas mileage than automatic transmission cars.  In fact, they get approximately ___ additional miles per gallon.
 
 ### Data Loading and Processing
-First, install necessary packages ggplot2 and bestglm, load the libraries into the session, load mtcars data set and check the structures.
+First, install necessary packages ggplot2 and bestglm, load the libraries into the session, load mtcars data set and check mtcars data structure.
 ```{r cars, message=FALSE, warning=FALSE,results='hide'}
 #install.packages("ggplot2")
 library(ggplot2)
@@ -26,7 +26,7 @@ data(mtcars)
 str(mtcars)
 ```
 
-See Appendix for output of str(mtcars).  Make sure all columns that _should_ be factors, are factors.
+Make sure all columns that _should_ be factors, are factors.
 
 Number of Cylinders, V or Straight engine block, number of forward gears and number of carburetors should not be considered multiplicative, and so should be treated as factors.
 
@@ -120,12 +120,8 @@ g <- ggplot(data = mtcars, aes(x=factor(am),y=mpg)) +
 g
 ```
 
-Output of structure output
-```{r datastructures}
-str(mtcars)
-```
 
-Model diagnostics
+Model diagnostics and plotting
 
 ```{r plot1diagnostics}
 par(mfrow=c(2,2))
