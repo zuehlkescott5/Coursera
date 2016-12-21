@@ -1,5 +1,5 @@
 ---
-title: "Motor Trend Car Road Tests - Effects of automatic and manual transmission on MPG"
+title: "Manual vs Automatic transmissions:  Which will take you farther?"
 author: "Scott Zuehlke"
 date: "December 21, 2016"
 output: pdf_document
