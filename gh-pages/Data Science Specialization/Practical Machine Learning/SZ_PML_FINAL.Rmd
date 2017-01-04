@@ -1,0 +1,217 @@
+---
+title: "Practical Machine Learning Coursera Project"
+author: "Scott Zuehlke"
+date: "January 4, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
+#### Taken from the Coursera Assignment page
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+# Objective
+
+Using the data provided on the Coursera PML assignment page, predict what exercises are being performed based on the measured data from the devices.  The methods used will be decision tree based.  This is a classification problem, so regression methods would not be practical.  Three different models will be built:  a Random Forest, a Decision Tree and a Bagged Decision Tree.  Each will be built separately on a provided training set, which will be split into a training+testing split.  Validations will be done in the testing split.  A model prediction file will be prepared for the second half of the assignment, a prediction quiz.
+
+
+## Project Outline
+  * Load packages
+  * Read in data
+  * Basic data cleanup
+  * Split train into train+test, set CV controls
+  * Random Forest
+  * Basic Decision Tree
+  * Bagged Decision Tree
+  * Compare and Declare
+  * Create prediction file
+  * Appendix
+
+
+### Load packages
+  The caret, rpart, rpart.plot, randomForest, ipred and gbm packages will be used.  doParallel package will be used to speed up process when possible through parallelization of algorithm.  Package parallel is used only to detect the number of cores in the local machine.
+
+```{r libraries, results='hide', warning=FALSE, message=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(ipred)
+library(gbm)
+library(parallel)
+library(doParallel)
+```
+
+### Read in data
+Check to see if pml-training.csv and pml-testing.csv already exists in working directory.  If they don't exist already,
+pull data from Coursera webpage and load into working directory as files pml-training.csv and pml-testing.csv.
+If they do exist, skip.
+
+```{r readData, warning=FALSE, message=FALSE}
+if (!file.exists("pml-training.csv")) {
+  tryCatch({
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "pml-training.csv")
+    print("File did not exist, but was successfully downloaded from the URL.")
+  },
+  error = function(cond) {
+    print(
+      "File did not exist, but there was an error in downloading the file from the provided URL."
+    )
+  })
+} else {
+  print("pml-training.csv already exists")
+}
+
+if (!file.exists("pml-testing.csv")) {
+  tryCatch({
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "pml-testing.csv")
+    print("File did not exist, but was successfully downloaded from the URL.")
+  },
+  error = function(cond) {
+    print(
+      "File did not exist, but there was an error in downloading the file from the provided URL."
+    )
+  })
+} else {
+  print("pml-testing.csv already exists")
+}
+```
+
+### Basic data cleanup
+
+First, get rid of any NA, #DIV/0, or empty cells in the csv and replace them with NA values
+```{r noNull, results='hide', warning=FALSE, message=FALSE}
+training.data <- read.csv('pml-training.csv', na.strings=c("NA","#DIV/0!",""))
+testing.data <- read.csv('pml-testing.csv',na.strings=c("NA","#DIV/0!",""))
+```
+
+Drop columns that contain mostly NA
+```{r NAtoZero, results='hide', warning=FALSE, message=FALSE}
+training.data <- training.data[,colSums(is.na(training.data)) == 0] 
+testing.data <- testing.data[,colSums(is.na(testing.data)) == 0] 
+```
+
+Remove small variance metrics
+```{r NZV, results='hide', warning=FALSE, message=FALSE}
+NZVcols.trian <- nearZeroVar(training.data, saveMetrics=TRUE)
+training.data.NZV <- training.data[,NZVcols.trian$nzv==FALSE]
+
+NZVcols.test <- nearZeroVar(training.data, saveMetrics=TRUE)
+testing.data.NZV <- testing.data[,NZVcols.test$nzv==FALSE]
+```
+
+Drop columns username, cvtd_timestamp, and X
+
+```{r dropCols, results='hide', warning=FALSE, message=FALSE}
+training.data.NZV$user_name <- NULL
+testing.data.NZV$user_name <- NULL
+testing.data.NZV$user_name <- NULL
+
+
+training.data.NZV$cvtd_timestamp <- NULL
+testing.data.NZV$cvtd_timestamp <- NULL
+testing.data.NZV$cvtd_timestamp <- NULL
+
+training.data.NZV$X <- NULL
+testing.data.NZV$X <- NULL
+testing.data.NZV$X <- NULL
+```
+
+### Split train into train+test, set CV controls
+
+Split training.data.NZV into train and test sets for model build
+
+```{r trainTestSplit, warning=FALSE, message=FALSE}
+inTrain <- createDataPartition(training.data.NZV$classe, p=0.75, list=FALSE)
+train.data <- training.data.NZV[inTrain, ]
+test.data <- training.data.NZV[-inTrain, ]
+```
+
+Set cross validation control details.
+
+  I'm using 10 fold cross validation and repeating three times.  This will ensure the outcome is less likely to be overfitted and provide the best model given the data.  This control object will be used to validate the random forest, decision tree and bagged decision tree to select the optimum model   for each type.  The three will then be compared separately against the test set that was derived from the provided training.  While setting the control, also enable parallel processing using all but two cores.  This will allow other resources to be used on the machine while processing.
+
+```{r CVcontrol, results='hide'}
+set.seed(5335)
+
+cores <- detectCores() - 2
+cl <- makeCluster(cores)
+registerDoParallel(cores)
+
+control <- trainControl(method="repeatedcv", number=10, repeats=3, search="random",allowParallel = TRUE)
+```
+
+### Random Forest
+
+Build a random forest on the train set and compare against the test.  Calculate the run time of the process.
+```{r randomForest, results='hide'}
+rf.start <- proc.time()
+rf <- train(classe~., data=train.data, method="rf", trControl = control, metric = "Accuracy")
+rf.run <- proc.time() - rf.start
+conf_rf.test <- confusionMatrix(test.data$classe, predict(rf, test.data))
+```
+
+```{r RFresults}
+varImp(rf)
+```
+
+### Basic Decision Tree
+
+Build a basic decision tree on the train set and compare against the test.  Calculate the run time of the process.
+```{r dTree, results='hide'}
+dt.start <- proc.time()
+dt.base <- train(classe ~ ., data = train.data, method = "rpart", trControl = control,metric="Accuracy")
+dt.run <- proc.time() - dt.start
+conf_dt.test <- confusionMatrix(test.data$classe, predict(dt.base, test.data))
+```
+
+```{r dTreeResults}
+varImp(dt.base)
+```
+
+### Bagged Decision Tree
+
+Build a bagged decision tree on the train set and compare against the test.  Calculate the run time of the process.  Since this is also the last algorithm to run, close the cluster after completion.
+```{r baggedDTree, results='hide'}
+bdt.start <- proc.time()
+dt.bag <- bagging(classe~., data=train.data)
+bdt.run <- proc.time() - bdt.start
+conf_bdtree.test <- confusionMatrix(test.data$classe, predict(dt.bag, test.data))
+stopCluster(cl)
+```
+
+```{r baggedDTreeResults, message=FALSE}
+varImp(dt.bag)
+```
+
+### Compare and Declare
+
+Comparing the different results using the out-of-sample testing error against the test set,
+
+  * The basic decision tree algorithm has an error of `r 100*(1- round(conf_dt.test$overall[1],4))`% and a run time of `r round(dt.run[3],2)` seconds. 
+  * The bagged decision tree algorithm has an error of `r 100*(1- round(conf_bdtree.test$overall[1],4))`% and a run time of `r round(bdt.run[3],2)` seconds.
+  * The random forest algorithm has an error of `r 100*(1- round(conf_rf.test$overall[1],4))`% and a run time of `r round(rf.run[3],2)` seconds.
+
+The random forest algorithm has the highest accuracy rate, but takes a tremendous amount of time to run.  The bagged decision tree suffers only a little loss of accuracy when compared to the random forest, but takes a substantially less amount of time.  The basic decision tree has a much higher error rate than the other two, though it is quickest to run.
+
+Because of this, even though the random forest model has a higher accuracy rate, the bagged decision tree is a much faster solution, while not losing much predictive power.  Therefore, the bagged decision tree model is champion.
+
+### Create prediction file
+
+Create a data frame with the problem_id and predictions, write to a csv file in the working directory.
+
+```{r preds}
+valPreds <- data.frame(problem_id = testing.data$problem_id, predicted=predict(dt.bag, testing.data.NZV))
+write.csv(valPreds, "PML Quiz Predictions.csv",row.names = FALSE)
+
+print(valPreds)
+```
+
+# Conclusion
+
+The bagged decision tree scored 100% on the automated quiz, so the prediction algorithm works very well on this particular problem.  The bagged decision tree was not the most accurate on the test set, but was selected because the loss of accuracy was minimal compared to the significant time gain compared to the random forest.

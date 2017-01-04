@@ -1,0 +1,136 @@
+---
+  title: "Simulations and Inferential Data Analysis, Statistical Inference:  Inferential Testing"
+author: "Scott Zuehlke"
+date: "December 3, 2016"
+output: pdf_document
+---
+  
+  ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This report was produced as part of the Coursera Data Science Specialization, Statistical Inference course.  All code was produced on a Mac running OS X 10.11.6, with RStudio version 0.99.902.  This report was produced as part of the Coursera Data Science Specialization, Statistical Inference course.
+The purpose of this report is to twofold:  Part one is to run simulations against the exponential distribution, therefore confirming the bootstrap method works, by checking sample distribution mean and spread, obtained by simulation, against the theoreteical mean and spread.  Part two is to run basic inferential analysis by testing the effects of dosage and supplmenet on Guinea Pig tooth growth.
+
+
+
+
+## Part 2: Basic Inferential Data Analysis
+
+Part 2: Basic Inferential Data Analysis Instructionsless 
+Now in the second portion of the project, we're going to analyze the ToothGrowth data in the R datasets package.
+
+Load the ToothGrowth data and perform some basic exploratory data analyses
+Provide a basic summary of the data.
+Use confidence intervals and/or hypothesis tests to compare tooth growth by supp and dose. (Only use the techniques from class, even if there's other approaches worth considering)
+State your conclusions and the assumptions needed for your conclusions.
+
+
+Start by loading the ToothGrowth data set from the datasets library
+
+
+```{r dataLoad}
+library(datasets)
+data(ToothGrowth)
+```
+
+First, take a look at the ToothGrowth data structures.
+
+
+```{r datastr}
+toothGrowthData <- ToothGrowth
+str(toothGrowthData)
+```
+
+Convert dose to a factor.
+```{r datastr2}
+toothGrowthData$dose <- as.factor(toothGrowthData$dose)
+str(toothGrowthData)
+```
+
+```{r datasummary}
+summary(toothGrowthData)
+```
+
+```{r datahead}
+head(toothGrowthData,n = 10)
+```
+
+```{r datatable}
+table(toothGrowthData$supp,toothGrowthData$dose)
+```
+
+```{r boxplot}
+boxplot(len ~ supp * dose, toothGrowthData,
+        ylab="Length of Tooth",
+        main = "Tooth Growth by Supplement and Dose")
+```
+In looking at the boxplots, it looks like there could be a relationship between dose and tooth growth, but not as much a relationship in the supplement differences.  To test these assumptions, we'll run hypothesis tests
+
+Checking the sample size,
+
+```{r datarow}
+nrow(toothGrowthData)
+```
+
+it makes sense to use a t test.  Use the R function t.test.
+
+First:  tooth growth by supp.  Check to see if different supp causes a change in tooth growth.  Our test will be that H0: mu1 = mu2, and Ha:  mu1 =/= mu2.
+
+```{r supptest}
+t.test(len ~ supp, data = toothGrowthData)
+```
+
+The returned p value is .06, which confirms the initial assumption that the means aren't statistsically different.  Looking at the 95% confidence interval, (-.17,7.57), it contains 0.  This is a different way of confirming that the difference in lengths of teeth by changing supplements is not statistically different.
+
+
+To test tooth growth by dose, first break the different dose levels out so they can be tested separately.
+
+```{r doses}
+toothGrowthdoses_0501 <- subset(toothGrowthData, dose %in% c(0.5, 1.0))
+toothGrowthdoses_0502 <- subset(toothGrowthData, dose %in% c(0.5, 2.0))
+toothGrowthdoses_0102 <- subset(toothGrowthData, dose %in% c(1.0, 2.0))
+```
+
+
+We're testing the hypothesis that there's a difference in lengths between a dose of .5 and 1.  So, the hypotheses are H0:mu.5 = mu1, and Ha:  mu.5 =/= mu1.
+```{r dose1test}
+t.test(len ~ dose, toothGrowthdoses_0501)
+```
+
+The p-value is essentially 0, which confirms there is a statistical difference in tooth length between doses of .5 and 1.  The confidence interval is (-11.98,-6.23), which illustrates again, but in a different way, there is a difference.
+
+
+Here, we're testing the hypothesis that there's a difference in lengths between a dose of .5 and 2.  So, the hypotheses are H0:mu.5 = mu2, and Ha:  mu.5 =/= mu2.
+```{r dose2test}
+t.test(len ~ dose, toothGrowthdoses_0502)
+```
+Once again, the p-value is essentially 0, which confirms there is a statistical difference in tooth length between doses of .5 and 2.  The confidence interval is (-18.16,-12.83), which illustrates again, but in a different way, there is a difference.
+
+
+Finally, we're testing the hypothesis that there's a difference in lengths between a dose of 1 and 2.  So, the hypotheses are H0:mu1 = mu2, and Ha:  mu1 =/= mu2.
+```{r dose3test}
+t.test(len ~ dose, toothGrowthdoses_0102)
+```
+In this last test, the p-value is essentially 0, which confirms there is a statistical difference in tooth length between doses of .5 and 2.  The confidence interval is (-8.99,-3.73), which illustrates again, but in a different way, there is a difference.
+
+
+Conclusions:
+  In the analysis in part 2, we confirmed there were no statistical differences in the length of teeth when changing the given supplements, however there are statistical differences between all three different levels of doses, confirming that a change in the doses of supplements does impact tooth length, even if the individual supplements do not.
+
+
+Assumptions
+
+1. We're assuming the experiment was done with a random assignment of guinea pigs.  This random dispersement would include random samples of both supplement type and dosage.  
+2. We're also assuming that each sample of guinea pigs is representative of the true population.  
+3. Finally, in the t-tests, given the boxplot, we assume the variances are unequal.  
+
+
+
+
+
+
+
+
+
+

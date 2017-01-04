@@ -1,0 +1,132 @@
+---
+title: "Manual vs Automatic transmissions:  Which will take you farther?"
+author: "Scott Zuehlke"
+date: "December 21, 2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Abstract
+
+Motor Trend, the auto magazine, has gathered data with the intent of comparing miles per gallon (MPG) for various vehicles, and especially comparing automatic and manual transmissions.
+
+Using a combination of hypothesis testing and linear regression, we'll compare average MPG from automatic and manual transmission vehicles.  The results will show that manual transmission cars do get better gas mileage than automatic transmission cars.  In fact, they get approximately ___ additional miles per gallon.
+
+### Data Loading and Processing
+First, install necessary packages ggplot2 and bestglm, load the libraries into the session, load mtcars data set and check mtcars data structure.
+```{r cars, message=FALSE, warning=FALSE,results='hide'}
+#install.packages("ggplot2")
+library(ggplot2)
+#install.packages("bestglm")
+library(bestglm)
+data(mtcars)
+str(mtcars)
+```
+
+Make sure all columns that _should_ be factors, are factors.
+
+Number of Cylinders, V or Straight engine block, number of forward gears and number of carburetors should not be considered multiplicative, and so should be treated as factors.
+
+```{r factors, echo=FALSE}
+mtcars$cyl  <- factor(mtcars$cyl)
+mtcars$vs   <- factor(mtcars$vs)
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+```
+
+### Test the population mean MPG between automatic and manual transmissions
+
+Create two different datasets, one for manual transmissions and one for automatic.  From the help section of mtcars, am==0 is automatic transmissions and am==1 is manual transmission.
+
+```{r manualauto, echo=FALSE}
+manualtrans <- subset(mtcars,am == 1)
+autotrans <- subset(mtcars,am == 0)
+```
+
+Manual transmission cars averaged `r round(mean(manualtrans$mpg),2)` MPG, while automatic transmission cars averaged `r round(mean(autotrans$mpg),2)` MPG.
+
+
+Based on this data, it looks like manual cars average more MPG than Automatic.  Test this hypothesis using a t test and store the information under object 'test'.  Use test $$H_{0}: \mu_{manual} = \mu_{automatic}$$ with alternative hypothesis $$H_{a}: \mu_{manual} \neq \mu_{automatic}$$
+
+```{r ttestresult}
+test <- t.test(manualtrans$mpg, autotrans$mpg)
+```
+
+The p-value for this test is `r round(test$p.value,3)`. 
+The 95% confidence interval is (`r round(test$conf.int[1],2)`,`r round(test$conf.int[2],2)`).
+
+Both of these indicate that there is, in fact, a difference in means between automatic and manual transmissions.  Not only that, the data suggests that manual transmissions have a higher fuel economy.
+
+### Regression Analysis
+
+To quantify the difference between automatic and manual transmissions, look at some regression models that predict MPG from the mtcars data set.  To start, fit a base model only using field AM to predict MPG.  Call it fit1.
+
+```{r basemodel,results = 'hide'}
+fit1 <- lm(mpg~am,data = mtcars)
+```
+
+This model has an R square of `r summary(fit1)$r.squared`.
+
+
+Now that the baseline has been set, use library bestglm to automatically find the best model features to use to predict MPG.  To do so, move the 'MPG' column to the final column and rename the column as 'y'.
+
+```{r automodel, results='hide'}
+col_idx <- grep("mpg",names(mtcars))
+new_cols <- c(2:length(mtcars),col_idx)
+
+mtcars.Xmpg <- subset(mtcars, select = new_cols)
+
+colnames(mtcars.Xmpg)[colnames(mtcars.Xmpg)=='mpg'] <- 'y'
+mtcars.Xy <- mtcars.Xmpg
+
+fit3 <- bestglm(mtcars.Xy, IC = 'AIC', method = 'exhaustive')
+```
+
+```{r automodelfeats}
+formula(fit3$BestModel)
+```
+
+The model gives us features wt, qsec and am, name it our best fitting model, bestFit, and compare the three models with an ANOVA.
+
+```{r bestfit}
+bestFit <- lm(mpg ~ wt + qsec + am, data = mtcars)
+```
+
+Using the best fitting model (R square of `r summary(bestFit)$r.squared`), the difference between manual and automatic transmissions is `r round(bestFit$coefficients[4],2)`.
+
+## Conclusion
+In revisiting the problem at hand, we were posed with two questions.  Answers are provided in the bullet below each question.
+
+1. Is an automatic or manual transmission better for MPG?
+* With 95% confidence, there is a difference between automatic and  manual transmissions in fuel economy.
+2. Quantify the MPG difference between automatic and manual transmissions
+* The estimated mileage increase in switching from an automatic to a manual transmission is `r round(bestFit$coefficients[4],2)`.  This number is based on our best estimating  model, and after accounting for other variables 1/4 mile time and weight.
+
+
+# Appendix
+
+Look at a box-and-whisker plot of automatic vs manual transmission vs MPG.
+
+```{r boxplot}
+g <- ggplot(data = mtcars, aes(x=factor(am),y=mpg)) +
+  geom_boxplot() +
+  xlab('Transmission (0 is Automatic, 1 is Manual)') +
+  ylab('MPG') +
+  ggtitle('MPG in Automatic vs Manual Transmissions') + 
+  theme(plot.title = element_text(hjust = 0.5))
+g
+```
+
+
+Model diagnostics and plotting
+
+```{r plot1diagnostics}
+par(mfrow=c(2,2))
+plot(bestFit)
+
+```
+
+
