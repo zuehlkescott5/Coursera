@@ -1,0 +1,23 @@
+---
+title: "Developing Data Products Assignment 1"
+author: "Scott Zuehlke"
+date: "January 7, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## States I've lived in.
+### Perhaps I should try moving out of the Midwest?
+
+```{r code,echo=FALSE}
+library(leaflet)
+library(maps)
+
+mapStates = map("state",c("minnesota","iowa","illinois"), fill = TRUE, plot = FALSE)
+leaflet(data = mapStates) %>% addTiles() %>%
+  addPolygons(fillColor = topo.colors(10, alpha = NULL), stroke = FALSE)
+```
+
