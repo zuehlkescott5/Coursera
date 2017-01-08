@@ -1,0 +1,16 @@
+DDP Assignment 2
+========================================================
+author: Scott Zuehlke
+date: January 7, 2017
+autosize: true
+
+MTCars, wt vs mpg vs cyl
+========================================================
+
+```{r, echo=FALSE,warning=FALSE}
+library(plotly)
+data("mtcars")
+p <- plot_ly(mtcars, x = ~wt, y = ~mpg, z = ~cyl)
+
+```
+<iframe src="demo.html" style="position:absolute;height:100%;width:100%"></iframe>
