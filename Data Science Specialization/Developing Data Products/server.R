@@ -1,5 +1,3 @@
-# library(rsconnect)
-# rsconnect::setAccountInfo(name='zuehlkescott5', token='5FAC4EFB253C392580B910659E6B9C9B', secret='d2zXNvc0+qiTMUlpAqy/kTvYzdArtREK/mfuJHEz')
 
 library(shiny) 
 data(mtcars)
