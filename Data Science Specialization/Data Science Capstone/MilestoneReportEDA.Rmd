@@ -1,0 +1,219 @@
+---
+title: "Coursera Capstone Milestone - Swiftkey EDA"
+author: "Scott Zuehlke"
+date: "February 10, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Document Overview
+Week two of the Coursera Capstone consists of conducting exploratory analysis on the three data sets - twitter, news, and blog - which came from the Coursera Capstone page in week one.  This markdown document will walk through:
+  
+* Downloading the data from Coursera, if the file doesn't already exist
+* Read the data files into R with UTF-8 encoding
+* Run basic text summaries and present table
+    + line counts
+    + word counts
+    + average words per line
+* Sample datasets down and build corpuses
+* Create subsetted corpuses consisting of top 10 words, by frequency, for each source
+* Bar chart display of word count frequencies
+* Display word clouds
+
+## Load required libraries
+
+```{r libraryload,warning=FALSE,message=FALSE}
+library(ggplot2)
+library(reshape2)
+library(tm)
+library(wordcloud)
+library(slam)
+library(R.utils)
+library(stringi)
+library(dplyr)
+library(data.table)
+```
+
+```{r workDir,echo=FALSE,warning=FALSE,message=FALSE}
+setwd('/Users/z086769/Desktop/CourseraCapstone')
+```
+
+## Downloading the data from Coursera, if the file doesn't already exist
+```{r getFiles, warning=FALSE,message=FALSE,results='hide'}
+if (!file.exists("Coursera-SwiftKey.zip")) {
+  tryCatch({
+    download.file("https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip", "Coursera-SwiftKey.zip")
+    print("File did not exist, but was successfully downloaded from the URL.")
+  },
+  error = function(cond) {
+    print(
+      "File did not exist, but there was an error in downloading the file from the provided URL."
+    )
+  })
+} else {
+  print("File Coursera-SwiftKey.zip already exists")
+}
+
+
+if (!file.exists("final")) {
+  tryCatch({
+    unzip("Coursera-SwiftKey.zip")
+    print("File final did not exist, but was successfully unzipped.")
+  },
+  error = function(cond) {
+    print("File final did not exist, and there was an error in unzipping the file.")
+  })
+} else {
+  print("File final already exists.")
+}
+```
+
+## Read the data files into R with UTF-8 encoding
+```{r readData, warning=FALSE,message=FALSE}
+twitterPath <- paste(getwd(),"final/en_us/en_US.twitter.txt",sep="/")
+blogPath <- paste(getwd(),"final/en_us/en_US.blogs.txt",sep="/")
+newsPath <- paste(getwd(),"/final/en_us/en_US.news.txt",sep="/")
+
+twitter <- readLines(twitterPath, encoding = "UTF-8", skipNul=TRUE)
+blog <- readLines(blogPath, encoding = "UTF-8", skipNul=TRUE)
+news <- readLines(newsPath, encoding = "UTF-8", skipNul=TRUE)
+```
+
+## Run basic text summaries and present table
+```{r fileStats, warning=FALSE,message=FALSE}
+dataStats <- data.frame(src = c('blog','news','twitter'),
+                        fileSizeinMB=c(file.info(blogPath)$size / (1024*1024),
+                                       file.info(newsPath)$size / (1024*1024),
+                                       file.info(twitterPath)$size / (1024*1024)
+                        ),
+                        lineCounts = c(countLines(blogPath),
+                                       countLines(newsPath),
+                                       countLines(twitterPath)
+                        ),
+                        wordCounts = c(sum(stri_count_words(blog)),
+                                       sum(stri_count_words(news)),
+                                       sum(stri_count_words(twitter))
+                        ),
+                        wordsPerLine = c(sum(stri_count_words(blog) / countLines(blogPath)),
+                                         sum(stri_count_words(news) / countLines(newsPath)),
+                                         sum(stri_count_words(twitter) / countLines(twitterPath))
+                        )
+)
+```
+
+```{r, results = 'asis'}
+library(knitr)
+kable(dataStats)
+```
+
+## Sample datasets down and build corpuses
+```{r takeSamples}
+twitterSample <- readLines(twitterPath, encoding = "UTF-8", skipNul=TRUE,n = 5000)
+blogSample <- readLines(blogPath, encoding = "UTF-8", skipNul=TRUE,n = 5000)
+newsSample <- readLines(newsPath, encoding = "UTF-8", skipNul=TRUE,n = 5000)
+
+twitter.corpus <- VCorpus(VectorSource(twitterSample))
+twitter.corpus <- tm_map(twitter.corpus, stripWhitespace)
+twitter.corpus <- tm_map(twitter.corpus, removeWords, stopwords("english"))
+twitter.corpus <- tm_map(twitter.corpus, content_transformer(tolower))
+twitter.corpus <- tm_map(twitter.corpus,removePunctuation)
+twitter.corpus <- tm_map(twitter.corpus, removeNumbers)
+twitter.corpus <- tm_map(twitter.corpus, stemDocument)
+twitterDM <- TermDocumentMatrix(twitter.corpus)
+twitterfreq <- sort(row_sums(twitterDM, na.rm=TRUE), decreasing=TRUE)
+twitterword <- names(twitterfreq)
+twitter_Corpus <- data.frame(word=twitterword, freq=twitterfreq)
+
+blog.corpus <- VCorpus(VectorSource(blogSample))
+blog.corpus <- tm_map(blog.corpus, stripWhitespace)
+blog.corpus <- tm_map(blog.corpus, removeWords, stopwords("english"))
+blog.corpus <- tm_map(blog.corpus, content_transformer(tolower))
+blog.corpus <- tm_map(blog.corpus,removePunctuation)
+blog.corpus <- tm_map(blog.corpus, removeNumbers)
+blog.corpus <- tm_map(blog.corpus, stemDocument)
+blogDM <- TermDocumentMatrix(blog.corpus)
+blogfreq <- sort(row_sums(blogDM, na.rm=TRUE), decreasing=TRUE)
+blogword <- names(blogfreq)
+blog_Corpus <- data.frame(word=blogword, freq=blogfreq)
+
+news.corpus <- VCorpus(VectorSource(newsSample))
+news.corpus <- tm_map(news.corpus, stripWhitespace)
+news.corpus <- tm_map(news.corpus, removeWords, stopwords("english"))
+news.corpus <- tm_map(news.corpus, content_transformer(tolower))
+news.corpus <- tm_map(news.corpus,removePunctuation)
+news.corpus <- tm_map(news.corpus, removeNumbers)
+news.corpus <- tm_map(news.corpus, stemDocument)
+newsDM <- TermDocumentMatrix(news.corpus)
+newsfreq <- sort(row_sums(newsDM, na.rm=TRUE), decreasing=TRUE)
+newsword <- names(newsfreq)
+news_Corpus <- data.frame(word=newsword, freq=newsfreq)
+```
+
+## Create subsetted corpuses consisting of top 10 words, by frequency, for each source
+```{r getTopTen}
+twitter_Corpus$src <- as.factor("twitter")
+twitter_Corpus_top_10 <- twitter_Corpus %>% filter(rank(desc(freq))<=10)
+blog_Corpus$src <- as.factor("blogs")
+blog_Corpus_top_10 <- blog_Corpus %>% filter(rank(desc(freq))<=10)
+news_Corpus$src <- as.factor("news")
+news_Corpus_top_10 <- news_Corpus %>% filter(rank(desc(freq))<=10)
+combined_Corpus_top_10 <- rbind(twitter_Corpus_top_10, blog_Corpus_top_10, news_Corpus_top_10)
+```
+
+## Bar chart display of word frequencies
+```{r topTenPlot}
+ggplot(combined_Corpus_top_10, aes(word, freq, fill=src)) +
+  geom_bar(stat="identity") +
+  xlab("Word") +
+  ylab("Frequency") +
+  ggtitle("Top 10 Words (in Frequency)") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), plot.title = element_text(hjust = 0.5))
+```
+
+## Display word clouds for each source
+```{r WordPlots}
+layout(matrix(c(1, 2), nrow=2), heights=c(1, 4))
+par(mar=rep(0, 4))
+plot.new()
+text(x=.5, .5, "Twitter")
+twitCloud <- wordcloud(words=twitter_Corpus$word,
+                       freq=twitter_Corpus$freq,
+                       random.order=FALSE,
+                       max.words = 30,
+                       colors=brewer.pal(8, "Dark2")
+)
+
+layout(matrix(c(1, 2), nrow=2), heights=c(1, 4))
+par(mar=rep(0, 4))
+plot.new()
+text(x=.5, .5, "Blog")
+blogCloud <- wordcloud(words=blog_Corpus$word,
+                       freq=blog_Corpus$freq,
+                       random.order=FALSE,
+                       max.words = 30,
+                       colors=brewer.pal(8, "Dark2")
+)
+
+layout(matrix(c(1, 2), nrow=2), heights=c(1, 4))
+par(mar=rep(0, 4))
+plot.new()
+text(x=.5, .5, "News")
+newsCloud <- wordcloud(words=news_Corpus$word,
+                       freq=news_Corpus$freq,
+                       random.order=FALSE,
+                       max.words = 30,
+                       colors=brewer.pal(8, "Dark2")
+)
+```
+
+## Next steps
+
+The next step in the process will be to build 2-,3-, and 4-N grams to help predict words.  This will be accomplished by
+
+* Subset the data into training, testing, and a hold-out set to build 2,3 and 4 N-gram models
+* Implement the model in a Shiny app for web interactivity and ability to make predictions
+* Build a slideshow to demonstrate the predictive model's capability
+
